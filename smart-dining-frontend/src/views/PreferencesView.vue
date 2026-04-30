@@ -72,29 +72,7 @@
         />
       </van-cell-group>
 
-      <!-- 识别设置 -->
-      <van-cell-group inset :title="isZh ? '识别设置' : 'Recognition'">
-        <van-cell 
-          :title="isZh ? '自动识别' : 'Auto Recognize'"
-          :label="isZh ? '自动定时识别菜品' : 'Auto detect dishes periodically'"
-          center
-        >
-          <template #right-icon>
-            <van-switch 
-              v-model="settingsStore.autoRecognizeEnabled"
-              size="24"
-            />
-          </template>
-        </van-cell>
-        
-        <van-cell 
-          v-if="settingsStore.autoRecognizeEnabled"
-          :title="isZh ? '识别间隔' : 'Interval'"
-          :value="`${settingsStore.autoRecognizeInterval / 1000}s`"
-          is-link
-          @click="showIntervalPicker = true"
-        />
-      </van-cell-group>
+
 
       <!-- 关于 -->
       <van-cell-group inset :title="isZh ? '关于' : 'About'">
@@ -138,15 +116,7 @@
       </div>
     </van-popup>
 
-    <!-- 间隔选择器 -->
-    <van-popup v-model:show="showIntervalPicker" position="bottom" round>
-      <van-picker
-        :title="isZh ? '选择间隔' : 'Select Interval'"
-        :columns="intervalOptions"
-        @confirm="onIntervalConfirm"
-        @cancel="showIntervalPicker = false"
-      />
-    </van-popup>
+
   </div>
 </template>
 
@@ -159,7 +129,6 @@ const settingsStore = useSettingsStore()
 const isZh = computed(() => settingsStore.language === 'zh')
 
 const showAllergenPicker = ref(false)
-const showIntervalPicker = ref(false)
 const selectedAllergens = ref([...settingsStore.allergens])
 
 const allergenOptions = [
@@ -173,12 +142,7 @@ const allergenOptions = [
   { value: '芝麻', label: '芝麻', labelEn: 'Sesame' }
 ]
 
-const intervalOptions = [
-  { text: '2 秒', value: 2000 },
-  { text: '3 秒', value: 3000 },
-  { text: '5 秒', value: 5000 },
-  { text: '10 秒', value: 10000 }
-]
+
 
 const allergensSummary = computed(() => {
   if (settingsStore.allergens.length === 0) {
@@ -210,10 +174,7 @@ function saveAllergens() {
   showToast(isZh.value ? '已保存' : 'Saved')
 }
 
-function onIntervalConfirm({ selectedOptions }) {
-  settingsStore.setAutoRecognizeInterval(selectedOptions[0].value)
-  showIntervalPicker.value = false
-}
+
 
 function testVoice() {
   settingsStore.speak(isZh.value ? '语音播报测试成功' : 'Voice test successful')
