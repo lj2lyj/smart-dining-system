@@ -54,17 +54,20 @@ export const useDishesStore = defineStore('dishes', () => {
             recognitionResult.value = result
             lastRecognitionLogId.value = result.log_id
 
-            // 自动将识别到的菜品添加到购物车
+            // 自动将识别到的菜品添加到购物车（每种只加1份，跳过已有的）
             if (result.dishes && result.dishes.length > 0) {
                 for (const dish of result.dishes) {
-                    addToCart({
-                        dish_id: dish.dish_id,
-                        name: dish.name,
-                        price: dish.price,
-                        quantity: 1,
-                        confidence: dish.confidence,
-                        is_manual: false
-                    })
+                    const existing = cartItems.value.find(i => i.dish_id === dish.dish_id)
+                    if (!existing) {
+                        addToCart({
+                            dish_id: dish.dish_id,
+                            name: dish.name,
+                            price: dish.price,
+                            quantity: 1,
+                            confidence: dish.confidence,
+                            is_manual: false
+                        })
+                    }
                 }
             }
 
@@ -87,17 +90,20 @@ export const useDishesStore = defineStore('dishes', () => {
             recognitionResult.value = result
             lastRecognitionLogId.value = result.log_id
 
-            // 自动将识别到的菜品添加到购物车
+            // 自动将识别到的菜品添加到购物车（每种只加1份，跳过已有的）
             if (result.dishes && result.dishes.length > 0) {
                 for (const dish of result.dishes) {
-                    addToCart({
-                        dish_id: dish.dish_id,
-                        name: dish.name,
-                        price: dish.price,
-                        quantity: 1,
-                        confidence: dish.confidence,
-                        is_manual: false
-                    })
+                    const existing = cartItems.value.find(i => i.dish_id === dish.dish_id)
+                    if (!existing) {
+                        addToCart({
+                            dish_id: dish.dish_id,
+                            name: dish.name,
+                            price: dish.price,
+                            quantity: 1,
+                            confidence: dish.confidence,
+                            is_manual: false
+                        })
+                    }
                 }
             }
 

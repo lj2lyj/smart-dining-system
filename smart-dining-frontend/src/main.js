@@ -1,8 +1,11 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
-// Vant UI
-import 'vant/lib/index.css'
+// Vant UI (在使用 unplugin-vue-components 时，需要单独引入 API 组件样式)
+import 'vant/es/toast/style'
+import 'vant/es/dialog/style'
+import 'vant/es/notify/style'
+import 'vant/es/image-preview/style'
 import {
     Button, NavBar, Icon, Tabbar, TabbarItem,
     Cell, CellGroup, Field, Form,

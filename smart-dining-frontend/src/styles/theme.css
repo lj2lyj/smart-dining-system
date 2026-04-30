@@ -502,10 +502,31 @@ body::before {
   background: var(--color-primary-gradient) !important;
   border: none !important;
   box-shadow: var(--shadow-md);
+  transition: all 0.12s ease !important;
 }
 
-.van-button--primary:active {
-  opacity: 0.9;
+/* 所有按钮通用点击反馈 - 缩小 + 变暗 */
+.van-button:active:not(:disabled) {
+  transform: scale(0.93) !important;
+  opacity: 0.85 !important;
+  box-shadow: none !important;
+  transition: all 0.06s ease !important;
+}
+
+/* 自定义按钮点击反馈 */
+.btn:active:not(:disabled),
+.quick-btn:active:not(:disabled),
+button:active:not(:disabled) {
+  transform: scale(0.93) !important;
+  opacity: 0.85 !important;
+  transition: all 0.06s ease !important;
+}
+
+/* 可点击图标的点击反馈 */
+.van-icon:active {
+  transform: scale(0.85);
+  opacity: 0.7;
+  transition: all 0.06s ease;
 }
 
 /* 增强 Vant NavBar */

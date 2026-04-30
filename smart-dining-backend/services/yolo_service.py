@@ -43,7 +43,9 @@ class YOLOService:
     def __init__(self):
         self.model = None
         self.class_names = {}
-        self.confidence_threshold = 0.3
+        self.confidence_threshold = 0.15  # 降低默认阈值，提高召回率
+        self.iou_threshold = 0.5          # NMS IoU 阈值
+        self.imgsz = 640                  # 推理输入尺寸
         self._load_default_model()
         
     def _load_default_model(self):
@@ -83,6 +85,89 @@ class YOLOService:
         """设置置信度阈值"""
         self.confidence_threshold = max(0.0, min(1.0, threshold))
     
+    def _preprocess_image(self, image: Image.Image) -> Image.Image:
+        """
+        图像预处理：自动旋转、格式转换、合理缩放
+        
+        Args:
+            image: PIL 图像
+            
+        Returns:
+            预处理后的图像
+        """
+        # 1. 处理 EXIF 旋转信息（手机拍照常见问题）
+        try:
+            from PIL import ImageOps
+            image = ImageOps.exif_transpose(image)
+        except Exception:
+            pass
+        
+        # 2. 确保图像为 RGB
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # 3. 如果图像太小，适当放大以提高识别率
+        w, h = image.size
+        min_dim = min(w, h)
+        if min_dim < 320:
+            scale = 320 / min_dim
+            image = image.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        
+        # 4. 如果图像过大（>4K），缩小以加速推理且避免内存问题
+        max_dim = max(w, h)
+        if max_dim > 3840:
+            scale = 3840 / max_dim
+            image = image.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        
+        return image
+    
+    def _deduplicate_detections(self, detections: list) -> list:
+        """
+        对同类别的重叠检测框去重，保留置信度最高的
+        
+        Args:
+            detections: 检测结果列表
+            
+        Returns:
+            去重后的检测结果
+        """
+        if len(detections) <= 1:
+            return detections
+        
+        # 按置信度降序排列
+        detections.sort(key=lambda x: x["confidence"], reverse=True)
+        
+        kept = []
+        for det in detections:
+            is_duplicate = False
+            for existing in kept:
+                # 同一类菜品才检查重叠
+                if det.get("dish_id") == existing.get("dish_id") or det.get("name") == existing.get("name"):
+                    # 计算 IoU
+                    iou = self._compute_iou(det["bbox"], existing["bbox"])
+                    if iou > 0.4:  # 重叠超过 40% 视为重复
+                        is_duplicate = True
+                        break
+            if not is_duplicate:
+                kept.append(det)
+        
+        return kept
+    
+    @staticmethod
+    def _compute_iou(box1: list, box2: list) -> float:
+        """计算两个框的 IoU"""
+        x1 = max(box1[0], box2[0])
+        y1 = max(box1[1], box2[1])
+        x2 = min(box1[2], box2[2])
+        y2 = min(box1[3], box2[3])
+        
+        inter = max(0, x2 - x1) * max(0, y2 - y1)
+        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        union = area1 + area2 - inter
+        
+        return inter / union if union > 0 else 0
+    
     async def predict(self, image_base64: str) -> Dict:
         """
         识别图像中的菜品
@@ -110,12 +195,19 @@ class YOLOService:
             image_data = base64.b64decode(image_data_str)
             image = Image.open(io.BytesIO(image_data))
             
-            # 确保图像为 RGB
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
+            # 图像预处理
+            image = self._preprocess_image(image)
             
-            # 运行 YOLO 推理
-            results = self.model(image, conf=self.confidence_threshold, verbose=False)
+            # 运行 YOLO 推理（增加 imgsz 和 iou 参数）
+            results = self.model(
+                image,
+                conf=self.confidence_threshold,
+                iou=self.iou_threshold,
+                imgsz=self.imgsz,
+                verbose=False,
+                augment=False,        # 关闭TTA，提升速度
+                max_det=50            # 最多检测50个目标
+            )
             
             # 解析结果
             detections = []
@@ -155,6 +247,9 @@ class YOLOService:
                             "category": "other",
                             "nutrition": None
                         })
+            
+            # 去重：移除同类菜品的重叠检测
+            detections = self._deduplicate_detections(detections)
             
             processing_time = (time.time() - start_time) * 1000
             

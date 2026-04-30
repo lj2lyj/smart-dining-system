@@ -38,24 +38,21 @@
         @click="captureAndRecognize"
       >
         <span v-if="!isRecognizing" class="btn-content">
-          <van-icon name="scan" size="24" />
+          <van-icon name="scan" size="20" />
           <span>{{ isZh ? '识别菜品' : 'Recognize' }}</span>
         </span>
         <span v-else class="btn-content">
-          <van-loading type="spinner" size="20" color="#fff" />
+          <van-loading type="spinner" size="18" color="#fff" />
           <span>{{ isZh ? '识别中...' : 'Processing...' }}</span>
         </span>
       </button>
-
-      <!-- 自动识别开关 -->
-      <div class="auto-recognize" v-if="showAutoToggle">
-        <span class="auto-label">{{ isZh ? '自动识别' : 'Auto' }}</span>
-        <van-switch 
-          v-model="autoEnabled" 
-          size="20"
-          @change="toggleAutoRecognize"
-        />
-      </div>
+      <!-- 上传图片识别按钮 -->
+      <button class="upload-btn" @click="emit('upload')">
+        <span class="btn-content">
+          <van-icon name="photo-o" size="20" />
+          <span>{{ isZh ? '上传图片' : 'Upload' }}</span>
+        </span>
+      </button>
     </div>
   </div>
 </template>
@@ -64,14 +61,9 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 
-const props = defineProps({
-  showAutoToggle: {
-    type: Boolean,
-    default: true
-  }
-})
+const props = defineProps({})
 
-const emit = defineEmits(['capture', 'recognize'])
+const emit = defineEmits(['capture', 'recognize', 'upload'])
 
 const settingsStore = useSettingsStore()
 const isZh = computed(() => settingsStore.language === 'zh')
@@ -81,9 +73,7 @@ const videoRef = ref(null)
 const canvasRef = ref(null)
 const hasCamera = ref(false)
 const isRecognizing = ref(false)
-const autoEnabled = ref(settingsStore.autoRecognizeEnabled)
 let stream = null
-let autoTimer = null
 
 // 初始化摄像头
 async function initCamera() {
@@ -149,41 +139,6 @@ async function captureAndRecognize() {
   }
 }
 
-// 切换自动识别
-function toggleAutoRecognize(enabled) {
-  settingsStore.autoRecognizeEnabled = enabled
-  
-  if (enabled) {
-    startAutoRecognize()
-  } else {
-    stopAutoRecognize()
-  }
-}
-
-// 开始自动识别
-function startAutoRecognize() {
-  if (autoTimer) return
-  
-  autoTimer = setInterval(() => {
-    if (!isRecognizing.value && hasCamera.value) {
-      captureAndRecognize()
-    }
-  }, settingsStore.autoRecognizeInterval)
-}
-
-// 停止自动识别
-function stopAutoRecognize() {
-  if (autoTimer) {
-    clearInterval(autoTimer)
-    autoTimer = null
-  }
-}
-
-// 监听自动识别状态
-watch(() => settingsStore.autoRecognizeEnabled, (enabled) => {
-  autoEnabled.value = enabled
-})
-
 // 暴露方法给父组件
 defineExpose({
   setRecognizing: (value) => { isRecognizing.value = value },
@@ -192,15 +147,10 @@ defineExpose({
 
 onMounted(() => {
   initCamera()
-  
-  if (settingsStore.autoRecognizeEnabled) {
-    startAutoRecognize()
-  }
 })
 
 onUnmounted(() => {
   stopCamera()
-  stopAutoRecognize()
 })
 </script>
 
@@ -287,21 +237,20 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-lg);
+  gap: var(--space-sm);
 }
 
 .recognize-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 140px;
-  padding: var(--space-sm) var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
   background: var(--color-primary-gradient);
   color: var(--color-text-inverse);
   border: none;
   border-radius: var(--radius-full);
   font-family: var(--font-body);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
@@ -329,21 +278,29 @@ onUnmounted(() => {
 .btn-content {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
 }
 
-.auto-recognize {
+.upload-btn {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  justify-content: center;
   padding: var(--space-sm) var(--space-md);
   background: var(--color-bg-card);
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
   border-radius: var(--radius-full);
-  box-shadow: var(--shadow-sm);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
 }
 
-.auto-label {
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+.upload-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
 }
+
+
 </style>

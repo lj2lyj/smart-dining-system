@@ -16,7 +16,11 @@ async def lifespan(app: FastAPI):
     print("[OK] 数据库初始化完成")
     print("[OK] 智慧餐饮结算系统后端启动成功")
     yield
-    # 关闭时清理资源
+    # 关闭时清理 MySQL 连接池
+    from database.db import _pool
+    if _pool and not _pool.closed:
+        _pool.close()
+        await _pool.wait_closed()
     print("[OK] 系统关闭")
 
 app = FastAPI(
@@ -54,6 +58,19 @@ async def root():
         "message": "智慧餐饮结算系统 API 运行中",
         "version": "1.0.0"
     }
+
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"Validation Error: {exc.errors()}")
+    print(f"Body: {exc.body}")
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
 
 @app.get("/api/health", tags=["健康检查"])
 async def health_check():

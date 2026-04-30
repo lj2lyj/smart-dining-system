@@ -33,7 +33,7 @@
             <van-icon name="gold-coin-o" />
           </div>
           <div class="stat-info">
-            <span class="stat-value">¥{{ stats.today_revenue.toFixed(2) }}</span>
+            <span class="stat-value">¥{{ Number(stats.today_revenue || 0).toFixed(2) }}</span>
             <span class="stat-label">{{ isZh ? '今日收入' : 'Revenue' }}</span>
           </div>
         </div>
@@ -158,6 +158,7 @@ const menuItems = [
   { route: '/admin/dishes', icon: 'apps-o', color: '#ff6b35', label: '菜品管理', labelEn: 'Dishes' },
   { route: '/admin/inventory', icon: 'balance-list-o', color: '#00b894', label: '库存管理', labelEn: 'Inventory' },
   { route: '/admin/stats', icon: 'chart-trending-o', color: '#6c5ce7', label: '销售统计', labelEn: 'Statistics' },
+  { route: '/history', icon: 'clock-o', color: '#0984e3', label: '历史订单', labelEn: 'Orders' },
   { route: '/admin/promotions', icon: 'coupon-o', color: '#fdcb6e', label: '促销管理', labelEn: 'Promotions' },
   { route: '/admin/settings', icon: 'setting-o', color: '#636e72', label: '系统设置', labelEn: 'Settings' }
 ]

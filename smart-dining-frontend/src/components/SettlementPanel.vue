@@ -7,13 +7,19 @@
         <span>{{ isZh ? '待结算' : 'Cart' }}</span>
         <van-badge v-if="cartItemCount > 0" :content="cartItemCount" />
       </h3>
-      <button 
-        v-if="cartItemCount > 0" 
-        class="clear-btn"
-        @click="handleClear"
-      >
-        {{ isZh ? '清空' : 'Clear' }}
-      </button>
+      <div class="header-actions">
+        <button class="add-dish-btn" @click="$emit('addDish')">
+          <van-icon name="plus" size="14" />
+          <span>{{ isZh ? '手动添加' : 'Add Dish' }}</span>
+        </button>
+        <button 
+          v-if="cartItemCount > 0" 
+          class="clear-btn"
+          @click="handleClear"
+        >
+          {{ isZh ? '清空' : 'Clear' }}
+        </button>
+      </div>
     </div>
 
     <!-- 购物车列表 -->
@@ -99,13 +105,23 @@
       </div>
     </Transition>
 
+    <!-- 促销信息 -->
+    <Transition name="fade">
+      <div v-if="bestPromo && cartItemCount > 0" class="promo-banner">
+        <van-icon name="coupon-o" color="var(--color-danger)" />
+        <span class="promo-text">{{ bestPromo.name }}：{{ bestPromo.type === 'discount' ? ((bestPromo.discount_value || 0) * 10) + '折' : '减¥' + (bestPromo.discount_value || 0) }}</span>
+        <span class="promo-save">-¥{{ discountAmount.toFixed(2) }}</span>
+      </div>
+    </Transition>
+
     <!-- 结算区域 -->
     <div class="settlement-footer">
       <div class="total-section">
         <span class="total-label">{{ isZh ? '合计' : 'Total' }}</span>
         <span class="total-amount">
+          <span v-if="discountAmount > 0" class="original-price">¥{{ Number(cartTotal || 0).toFixed(2) }}</span>
           <span class="currency">¥</span>
-          <span class="amount">{{ cartTotal.toFixed(2) }}</span>
+          <span class="amount">{{ finalTotal.toFixed(2) }}</span>
         </span>
       </div>
       
@@ -146,7 +162,7 @@
         
         <div class="payment-actions">
           <van-button block type="primary" :loading="paying" @click="confirmPay">
-            {{ isZh ? `支付 ¥${cartTotal.toFixed(2)}` : `Pay ¥${cartTotal.toFixed(2)}` }}
+            {{ isZh ? `支付 ¥${finalTotal.toFixed(2)}` : `Pay ¥${finalTotal.toFixed(2)}` }}
           </van-button>
         </div>
       </div>
@@ -160,7 +176,7 @@
           <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" alt="QR Code" />
           <van-loading v-else type="spinner" />
         </div>
-        <p class="qrcode-amount">¥{{ cartTotal.toFixed(2) }}</p>
+        <p class="qrcode-amount">¥{{ finalTotal.toFixed(2) }}</p>
         <p class="qrcode-hint">{{ isZh ? '支付完成后自动跳转' : 'Auto redirect after payment' }}</p>
         <van-button plain size="small" @click="cancelPayment">
           {{ isZh ? '取消支付' : 'Cancel' }}
@@ -171,10 +187,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDishesStore, useSettingsStore } from '../stores'
-import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
-import { ordersApi, paymentApi } from '../api'
+import { showConfirmDialog, showSuccessToast, showToast, showDialog } from 'vant'
+import { ordersApi, paymentApi, promotionsApi } from '../api'
 
 const props = defineProps({
   showNutrition: {
@@ -183,7 +199,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['selectManual', 'paySuccess'])
+const emit = defineEmits(['selectManual', 'paySuccess', 'addDish'])
 
 const dishesStore = useDishesStore()
 const settingsStore = useSettingsStore()
@@ -243,6 +259,54 @@ const totalNutrition = computed(() => {
   }
 })
 
+// 促销相关
+const activePromotions = ref([])
+
+async function loadPromotions() {
+  try {
+    activePromotions.value = await promotionsApi.getActive()
+  } catch {
+    activePromotions.value = []
+  }
+}
+
+// 找到最优促销
+const bestPromo = computed(() => {
+  if (cartItemCount.value === 0 || activePromotions.value.length === 0) return null
+  const total = cartTotal.value
+  let best = null
+  let bestSave = 0
+  for (const p of activePromotions.value) {
+    const minAmt = Number(p.min_amount || 0)
+    if (total < minAmt) continue
+    const dv = Number(p.discount_value || 0)
+    let save = 0
+    if (p.type === 'discount' && dv > 0 && dv < 1) {
+      save = total * (1 - dv)
+    } else if (p.type === 'fixed' && dv > 0) {
+      save = Math.min(dv, total)
+    }
+    if (save > bestSave) { bestSave = save; best = p }
+  }
+  return best
+})
+
+const discountAmount = computed(() => {
+  if (!bestPromo.value) return 0
+  const total = cartTotal.value
+  const dv = Number(bestPromo.value.discount_value || 0)
+  if (bestPromo.value.type === 'discount' && dv > 0 && dv < 1) {
+    return total * (1 - dv)
+  } else if (bestPromo.value.type === 'fixed' && dv > 0) {
+    return Math.min(dv, total)
+  }
+  return 0
+})
+
+const finalTotal = computed(() => {
+  return Math.max(0, cartTotal.value - discountAmount.value)
+})
+
 // 更新数量
 function updateQuantity(dishId, quantity) {
   dishesStore.updateCartQuantity(dishId, quantity)
@@ -265,20 +329,27 @@ async function handleClear() {
 async function confirmPay() {
   if (cartItemCount.value === 0) return
   
+  // 唤醒语音引擎 (绕过浏览器自动播放限制)
+  if ('speechSynthesis' in window && settingsStore.voiceEnabled) {
+    const utterance = new SpeechSynthesisUtterance(' ')
+    utterance.volume = 0
+    window.speechSynthesis.speak(utterance)
+  }
+  
   paying.value = true
   
   try {
     // 1. 先创建业务订单
     const order = await ordersApi.create({
       items: cartItems.value,
-      total_amount: cartTotal.value,
+      total_amount: finalTotal.value,
       recognition_log_id: dishesStore.lastRecognitionLogId
     })
     
     // 2. 创建支付订单
     const payResult = await paymentApi.create(
       order.id,
-      cartTotal.value,
+      finalTotal.value,
       isZh.value ? '智慧餐饮订单' : 'Smart Dining Order',
       selectedMethod.value
     )
@@ -311,26 +382,43 @@ async function generateQrCode(content) {
   qrCodeDataUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(content)}`
 }
 
+// 轮询控制标志
+let isPolling = false
+
 // 开始轮询支付状态
 function startPolling(order) {
-  pollTimer = setInterval(async () => {
+  isPolling = true
+  
+  const checkStatus = async () => {
+    if (!isPolling) return
+    
     try {
       const result = await paymentApi.query(currentPaymentId.value)
       
-      if (result.status === 'paid') {
+      if (result.status === 'paid' && isPolling) {
         stopPolling()
         handlePaymentSuccess(order)
+        return // 成功后不再继续轮询
       }
     } catch (e) {
       console.error('查询支付状态失败:', e)
     }
-  }, 2000) // 每2秒查询一次
+    
+    // 如果还在轮询状态，则2秒后再次查询
+    if (isPolling) {
+      pollTimer = setTimeout(checkStatus, 2000)
+    }
+  }
+  
+  // 启动第一次延迟查询
+  pollTimer = setTimeout(checkStatus, 2000)
 }
 
 // 停止轮询
 function stopPolling() {
+  isPolling = false
   if (pollTimer) {
-    clearInterval(pollTimer)
+    clearTimeout(pollTimer)
     pollTimer = null
   }
 }
@@ -342,16 +430,21 @@ function handlePaymentSuccess(order) {
   // 语音播报
   settingsStore.speak(
     isZh.value 
-      ? `支付成功，共${cartTotal.value.toFixed(2)}元` 
-      : `Payment complete, total ${cartTotal.value.toFixed(2)} yuan`
+      ? `支付成功，共${finalTotal.value.toFixed(2)}元` 
+      : `Payment complete, total ${finalTotal.value.toFixed(2)} yuan`
   )
   
-  showSuccessToast(isZh.value ? '支付成功' : 'Payment Complete')
-  
-  // 清空购物车
-  dishesStore.clearCart()
-  
-  emit('paySuccess', order)
+  // 使用明显的弹窗提示
+  showDialog({
+    title: isZh.value ? '✅ 支付成功' : '✅ Success',
+    message: isZh.value ? '感谢您的就餐，欢迎下次光临！' : 'Thank you for dining with us!',
+    confirmButtonText: isZh.value ? '完成' : 'Done',
+    theme: 'round-button',
+  }).then(() => {
+    // 清空购物车
+    dishesStore.clearCart()
+    emit('paySuccess', order)
+  })
 }
 
 // 取消支付
@@ -369,6 +462,11 @@ onUnmounted(() => {
 
 // 初始化
 loadPaymentMethods()
+loadPromotions()
+
+onMounted(() => {
+  loadPromotions()
+})
 </script>
 
 <style scoped>
@@ -414,6 +512,32 @@ loadPaymentMethods()
 .clear-btn:hover {
   color: var(--color-danger);
   border-color: var(--color-danger);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.add-dish-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-primary);
+  background: rgba(255, 107, 53, 0.08);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-dish-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 .cart-list {
@@ -504,8 +628,8 @@ loadPaymentMethods()
 .nutrition-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
   background: var(--color-bg-secondary);
   border-top: 1px solid var(--color-border);
 }
@@ -517,14 +641,43 @@ loadPaymentMethods()
 }
 
 .nutrition-value {
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-primary);
 }
 
 .nutrition-label {
-  font-size: var(--text-xs);
+  font-size: 10px;
   color: var(--color-text-secondary);
+}
+
+.promo-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: rgba(214, 48, 49, 0.06);
+  border-top: 1px solid rgba(214, 48, 49, 0.15);
+  font-size: var(--text-sm);
+}
+
+.promo-text {
+  flex: 1;
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.promo-save {
+  font-weight: 600;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.original-price {
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+  text-decoration: line-through;
+  margin-right: var(--space-xs);
 }
 
 .settlement-footer {

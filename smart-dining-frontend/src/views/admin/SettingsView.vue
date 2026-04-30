@@ -50,7 +50,7 @@ import { showToast } from 'vant'
 
 const settingsStore = useSettingsStore()
 const isZh = computed(() => settingsStore.language === 'zh')
-const settings = ref({ confidence_threshold: 0.7, auto_recognize_interval: 3000, enable_logging: true, model_path: null })
+const settings = ref({ confidence_threshold: 0.15, auto_recognize_interval: 3000, enable_logging: true, model_path: null })
 const modelStatus = ref({ loaded: false })
 const showThresholdPicker = ref(false)
 const showIntervalPicker = ref(false)
@@ -58,7 +58,11 @@ const showPasswordDialog = ref(false)
 const oldPass = ref('')
 const newPass = ref('')
 
-const thresholdOptions = [{ text: '50%', value: 0.5 }, { text: '60%', value: 0.6 }, { text: '70%', value: 0.7 }, { text: '80%', value: 0.8 }, { text: '90%', value: 0.9 }]
+// 置信度阈值选项：10% ~ 100%，间隔 5%
+const thresholdOptions = Array.from({ length: 19 }, (_, i) => {
+  const pct = (i + 2) * 5  // 10, 15, 20, ..., 100
+  return { text: pct + '%', value: pct / 100 }
+})
 const intervalOptions = [{ text: '2s', value: 2000 }, { text: '3s', value: 3000 }, { text: '5s', value: 5000 }]
 
 async function loadSettings() {

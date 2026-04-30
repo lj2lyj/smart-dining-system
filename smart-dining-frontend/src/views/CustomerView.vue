@@ -11,14 +11,14 @@
       <template #right>
         <div class="nav-actions">
           <van-icon 
-            name="clock-o" 
-            size="22" 
-            @click="$router.push('/history')"
-          />
-          <van-icon 
             name="setting-o" 
             size="22" 
             @click="$router.push('/preferences')"
+          />
+          <van-icon 
+            name="manager-o" 
+            size="22" 
+            @click="$router.push('/admin')"
           />
         </div>
       </template>
@@ -37,6 +37,7 @@
       <CameraCapture 
         ref="cameraRef"
         @recognize="handleRecognize"
+        @upload="triggerUpload"
       />
 
       <!-- 识别结果提示 -->
@@ -51,23 +52,8 @@
       <SettlementPanel 
         @selectManual="showDishSelector = true"
         @paySuccess="handlePaySuccess"
+        @addDish="showDishSelector = true"
       />
-
-      <!-- 快捷添加按钮 -->
-      <div class="quick-actions">
-        <button class="quick-btn upload-btn" @click="triggerUpload">
-          <van-icon name="photo-o" />
-          <span>{{ isZh ? '上传图片识别' : 'Upload Photo' }}</span>
-        </button>
-        <button class="quick-btn" @click="showDishSelector = true">
-          <van-icon name="plus" />
-          <span>{{ isZh ? '手动添加' : 'Add Dish' }}</span>
-        </button>
-        <button class="quick-btn secondary" @click="$router.push('/admin')">
-          <van-icon name="manager-o" />
-          <span>{{ isZh ? '管理员' : 'Admin' }}</span>
-        </button>
-      </div>
 
       <!-- 隐藏的文件上传输入 -->
       <input
@@ -288,46 +274,4 @@ onMounted(() => {
   color: #cc9800;
 }
 
-.quick-actions {
-  display: flex;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-}
-
-.quick-btn {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  background: var(--color-bg-card);
-  color: var(--color-text-primary);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-base);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.quick-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.quick-btn.upload-btn {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.quick-btn.upload-btn:hover {
-  opacity: 0.9;
-}
-
-.quick-btn.secondary {
-  background: transparent;
-}
 </style>

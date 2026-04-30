@@ -44,10 +44,6 @@
             {{ isZh ? '登录' : 'Login' }}
           </van-button>
         </div>
-
-        <p class="login-hint">
-          {{ isZh ? '默认账号: admin / admin123' : 'Default: admin / admin123' }}
-        </p>
       </van-form>
 
       <!-- 返回按钮 -->

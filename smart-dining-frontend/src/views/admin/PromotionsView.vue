@@ -12,7 +12,7 @@
             <van-tag :type="p.is_active ? 'success' : 'default'" size="small">{{ p.is_active ? (isZh ? '进行中' : 'Active') : (isZh ? '已停用' : 'Inactive') }}</van-tag>
           </div>
           <div class="promo-info">
-            <span>{{ p.type === 'discount' ? (isZh ? '折扣:' : 'Discount:') : (isZh ? '减价:' : 'Off:') }} {{ p.type === 'discount' ? (p.value * 10) + '折' : '¥' + p.value }}</span>
+            <span>{{ p.type === 'discount' ? (isZh ? '折扣:' : 'Discount:') : (isZh ? '减价:' : 'Off:') }} {{ p.type === 'discount' ? ((p.discount_value || 0) * 10) + '折' : '¥' + (p.discount_value || 0) }}</span>
           </div>
           <div class="promo-actions">
             <van-button size="small" plain @click="toggleActive(p)">{{ p.is_active ? (isZh ? '停用' : 'Disable') : (isZh ? '启用' : 'Enable') }}</van-button>
@@ -30,7 +30,7 @@
           <van-cell-group inset>
             <van-field v-model="form.name" :label="isZh ? '名称' : 'Name'" required />
             <van-field :label="isZh ? '类型' : 'Type'" :model-value="form.type === 'discount' ? (isZh ? '折扣' : 'Discount') : (isZh ? '减价' : 'Fixed')" is-link readonly @click="showTypePicker = true" />
-            <van-field v-model="form.value" type="number" :label="form.type === 'discount' ? (isZh ? '折扣(0-1)' : 'Discount(0-1)') : (isZh ? '金额' : 'Amount')" required />
+            <van-field v-model="form.discount_value" type="number" :label="form.type === 'discount' ? (isZh ? '折扣(0-1)' : 'Discount(0-1)') : (isZh ? '金额' : 'Amount')" required />
           </van-cell-group>
           <div style="padding:16px"><van-button block type="primary" native-type="submit">{{ isZh ? '保存' : 'Save' }}</van-button></div>
         </van-form>
@@ -55,15 +55,15 @@ const promotions = ref([])
 const refreshing = ref(false)
 const showAdd = ref(false)
 const showTypePicker = ref(false)
-const form = ref({ name: '', type: 'discount', value: '' })
+const form = ref({ name: '', type: 'discount', discount_value: '' })
 
 async function load() { try { promotions.value = await promotionsApi.getAll() } finally { refreshing.value = false } }
 async function save() {
   try {
-    await promotionsApi.create({ ...form.value, value: parseFloat(form.value.value), is_active: true })
+    await promotionsApi.create({ name: form.value.name, type: form.value.type, discount_value: parseFloat(form.value.discount_value) || 0, is_active: true })
     showToast({ message: isZh.value ? '已添加' : 'Added', icon: 'success' })
     showAdd.value = false
-    form.value = { name: '', type: 'discount', value: '' }
+    form.value = { name: '', type: 'discount', discount_value: '' }
     load()
   } catch { showToast(isZh.value ? '失败' : 'Failed') }
 }

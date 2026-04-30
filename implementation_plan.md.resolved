@@ -1,0 +1,232 @@
+# 本地实现支付宝支付方案
+
+## 背景
+
+项目没有公网地址，无法接收支付宝异步回调通知（`notify_url`）。需要一种方案在本地完成支付宝支付的完整流程。
+
+## 方案概述
+
+> [!TIP]
+> **核心思路：沙箱环境 + 当面付预创建 + 主动轮询，完全不需要公网地址**
+
+| 环节 | 方案 | 是否需要公网 |
+|------|------|:---:|
+| 下单（预创建） | 本地调用支付宝沙箱 API → 拿到二维码 | ❌ |
+| 用户支付 | 沙箱支付宝 App 扫码 | ❌ |
+| 支付状态确认 | 前端轮询后端 → 后端主动调用 `alipay.trade.query` 查询 | ❌ |
+| 异步回调 | **跳过**，不设置 `notify_url` | — |
+
+整个流程只涉及**出站 HTTPS 请求**（本地 → 支付宝服务器），不需要支付宝服务器回调你的机器，因此**完全不需要公网 IP 或内网穿透**。
+
+---
+
+## 前置准备（操作文档）
+
+### 第 1 步：注册支付宝开放平台沙箱
+
+1. 访问 [支付宝开放平台](https://open.alipay.com/)，使用**个人支付宝**账号登录
+2. 进入 **控制台** → 左侧菜单 **开发工具推荐** → **沙箱**
+3. 在沙箱详情页记录以下信息：
+   - **APPID**（沙箱应用 ID）
+   - **支付宝网关**：`https://openapi-sandbox.dl.alipaydev.com/gateway.do`
+   - **商家账号**（沙箱卖家账号）
+   - **买家账号**（沙箱买家账号 + 登录密码 + 支付密码）
+
+### 第 2 步：配置密钥
+
+1. 在沙箱详情页，点击 **接口加签方式** 旁的 **查看/设置**
+2. 选择 **自定义密钥** → 加签模式选择 **公钥**
+3. 下载 [支付宝开放平台开发助手](https://opendocs.alipay.com/common/02kipk) 工具
+4. 使用开发助手生成 **RSA2(SHA256)** 密钥对：
+   - 保存 **应用私钥**（`app_private_key.txt`）→ 后端使用
+   - 复制 **应用公钥** → 粘贴到沙箱配置页面
+5. 设置成功后，页面会显示 **支付宝公钥** → 复制保存（`alipay_public_key.txt`）
+
+> [!IMPORTANT]
+> 注意区分：
+> - **应用私钥** = 你自己生成的，后端签名请求时使用
+> - **支付宝公钥** = 设置完成后平台返回给你的，后端验证响应时使用
+> - 两者不要混淆！
+
+### 第 3 步：下载沙箱支付宝 App
+
+1. 在沙箱页面左侧 **沙箱工具** → 下载 **沙箱版支付宝**（仅 Android）
+2. 安装后使用**沙箱买家账号**登录（不是你的真实支付宝）
+3. 沙箱账号自带虚拟余额，**不会产生真实扣款**
+
+> [!NOTE]
+> 如果没有 Android 手机，可以使用 Android 模拟器（如 MuMu、雷电、夜神模拟器）安装沙箱支付宝。
+
+### 第 4 步：安装 Python SDK
+
+```bash
+cd smart-dining-backend
+pip install alipay-sdk-python
+```
+
+### 第 5 步：创建密钥文件
+
+在 `smart-dining-backend/` 目录下创建 `keys/` 文件夹，放入密钥文件：
+
+```
+smart-dining-backend/
+├── keys/
+│   ├── app_private_key.txt    ← 应用私钥（第2步生成的）
+│   └── alipay_public_key.txt  ← 支付宝公钥（第2步获取的）
+├── services/
+│   └── payment_service.py
+└── ...
+```
+
+> [!WARNING]
+> `keys/` 目录必须添加到 `.gitignore`，**绝对不要**将密钥提交到 Git 仓库！
+
+---
+
+## Proposed Changes
+
+### 1. 后端 - 支付服务
+
+#### [MODIFY] [payment_service.py](file:///c:/Users/ASUS/Desktop/1111/smart-dining-backend/services/payment_service.py)
+
+**主要改动：**
+
+1. **`PaymentConfig`**：新增 `ALIPAY_SANDBOX` 开关，从 `keys/` 目录自动加载密钥文件
+2. **`AlipayService.create_order()`**：实现真实的 `alipay.trade.precreate` 调用，生成二维码
+3. **`AlipayService.query_order()`**：实现真实的 `alipay.trade.query` 调用，主动查询支付状态
+4. **`AlipayService.verify_notification()`**：实现签名验证（可选）
+5. **`PaymentService.query_payment()`**：去掉模拟模式下自动返回"已支付"的逻辑，改为真实查询
+
+**关键代码逻辑：**
+
+```python
+# 创建预下单 → 返回 qr_code → 前端展示二维码
+# 不设置 notify_url → 无需公网
+def create_order(...):
+    model = AlipayTradePrecreateModel()
+    model.out_trade_no = order_id
+    model.total_amount = str(amount)
+    model.subject = subject
+    # 不传 notify_url
+    
+    request = AlipayTradePrecreateRequest(biz_model=model)
+    response = client.execute(request)
+    # 返回 response 中的 qr_code
+```
+
+```python
+# 前端轮询 → 后端主动调 alipay.trade.query → 返回真实状态
+def query_order(order_id):
+    model = AlipayTradeQueryModel()
+    model.out_trade_no = order_id
+    
+    request = AlipayTradeQueryRequest(biz_model=model)
+    response = client.execute(request)
+    # 返回 trade_status
+```
+
+---
+
+### 2. 后端 - 密钥与安全
+
+#### [NEW] keys/ 目录
+
+存放 `app_private_key.txt` 和 `alipay_public_key.txt`，用户手动放入。
+
+#### [MODIFY] [.gitignore](file:///c:/Users/ASUS/Desktop/1111/.gitignore)
+
+添加 `keys/` 到忽略列表。
+
+---
+
+### 3. 后端 - 依赖
+
+#### [MODIFY] [requirements.txt](file:///c:/Users/ASUS/Desktop/1111/smart-dining-backend/requirements.txt)
+
+添加 `alipay-sdk-python` 依赖。
+
+---
+
+### 4. 前端 - 无需改动
+
+当前前端已有完整的支付流程：
+- 调用 `POST /api/payment/create` 创建支付 → 获取 `qr_code`
+- 生成二维码展示给用户
+- 轮询 `GET /api/payment/query/{payment_id}` 检查状态
+
+前端逻辑完全适配本方案，**不需要任何前端改动**。
+
+---
+
+## 完整支付流程
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        本地支付流程                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. 用户点击"支付宝支付"                                         │
+│       ↓                                                         │
+│  2. 前端 POST /api/payment/create                               │
+│       ↓                                                         │
+│  3. 后端调用 alipay.trade.precreate（沙箱API）                   │
+│       ↓ ← 出站请求，不需要公网                                    │
+│  4. 支付宝返回 qr_code 链接                                      │
+│       ↓                                                         │
+│  5. 前端生成二维码展示                                            │
+│       ↓                                                         │
+│  6. 用户用 [沙箱支付宝App] 扫码支付                               │
+│       ↓                                                         │
+│  7. 前端轮询 GET /api/payment/query/{id}                         │
+│       ↓                                                         │
+│  8. 后端调用 alipay.trade.query（沙箱API）                       │
+│       ↓ ← 出站请求，不需要公网                                    │
+│  9. 支付宝返回 TRADE_SUCCESS                                     │
+│       ↓                                                         │
+│  10. 前端显示支付成功 ✅                                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Q1: 密钥配置方式**
+> 方案A：直接将密钥内容写入 `.env` 文件（方便但密钥较长）
+> 方案B：将密钥保存为独立文件在 `keys/` 目录（推荐，更清晰）
+> 当前方案默认使用 **方案B**，你是否同意？
+
+> [!IMPORTANT]
+> **Q2: 模拟模式保留**
+> 改造后，如果没有配置沙箱参数，系统仍然以模拟模式运行（和当前行为一致）。配置了沙箱参数后自动切换到真实沙箱调用。这样可以吗？
+
+---
+
+## Verification Plan
+
+### 自动化测试
+```bash
+# 1. 确认 SDK 安装成功
+python -c "from alipay.aop.api.DefaultAlipayClient import DefaultAlipayClient; print('SDK OK')"
+
+# 2. 启动后端
+cd smart-dining-backend
+python -m uvicorn main:app --reload --port 8000
+
+# 3. 测试配置状态接口
+curl http://localhost:8000/api/payment/config/status
+
+# 4. 测试创建支付订单
+curl -X POST http://localhost:8000/api/payment/create \
+  -H "Content-Type: application/json" \
+  -d '{"order_id":"test001","amount":0.01,"subject":"测试菜品","payment_method":"alipay"}'
+```
+
+### 手动验证
+1. 启动前后端服务
+2. 在前端完成一次菜品识别 → 进入结算页
+3. 选择支付宝支付 → 页面生成二维码
+4. 用沙箱支付宝 App 扫码 → 确认支付
+5. 前端自动检测到支付成功 → 跳转成功页

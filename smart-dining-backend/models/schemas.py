@@ -133,8 +133,9 @@ class PromotionCreate(BaseModel):
     """创建促销"""
     name: str
     type: PromotionType
-    value: float = Field(..., description="折扣值或减价金额")
-    dish_ids: List[str] = Field(default_factory=list, description="适用菜品")
+    discount_value: float = Field(0, description="折扣值或减价金额")
+    min_amount: float = Field(0, description="最低消费金额")
+    applicable_dishes: List[str] = Field(default_factory=list, description="适用菜品")
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_active: bool = True

@@ -25,12 +25,14 @@ async def create_new_order(order: OrderCreate):
     # 计算总金额
     calculated_total = sum(item.price * item.quantity for item in order.items)
     
-    # 验证总金额（允许小数误差）
-    if abs(calculated_total - order.total_amount) > 0.01:
+    # 验证总金额（允许有折扣，所以提交值可以小于计算值，但不能大于）
+    if order.total_amount > calculated_total + 0.01:
         raise HTTPException(
             status_code=400, 
-            detail=f"金额不匹配: 计算值 {calculated_total}, 提交值 {order.total_amount}"
+            detail=f"金额不合法: 原价 {calculated_total}, 提交值 {order.total_amount}"
         )
+    
+    discount_amount = max(0, calculated_total - order.total_amount)
     
     # 更新库存
     for item in order.items:
@@ -40,6 +42,8 @@ async def create_new_order(order: OrderCreate):
     order_data = {
         "items": [item.model_dump() for item in order.items],
         "total_amount": order.total_amount,
+        "original_amount": calculated_total,
+        "discount_amount": discount_amount,
         "recognition_log_id": order.recognition_log_id
     }
     

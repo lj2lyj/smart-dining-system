@@ -43,7 +43,7 @@
               <div class="dish-info">
                 <div class="dish-name">{{ dish.name }}</div>
                 <div class="dish-meta">
-                  <span class="dish-price">¥{{ dish.price.toFixed(2) }}</span>
+                  <span class="dish-price">¥{{ Number(dish.price || 0).toFixed(2) }}</span>
                   <van-tag :type="dish.source === 'yolo' ? 'success' : 'primary'" size="small">
                     {{ dish.source === 'yolo' ? 'YOLO' : (isZh ? '手动' : 'Manual') }}
                   </van-tag>
@@ -53,7 +53,17 @@
                 </div>
               </div>
               
-              <van-icon name="arrow" color="var(--color-text-light)" />
+              <van-button
+                v-if="dish.source === 'manual'"
+                type="danger"
+                size="small"
+                plain
+                icon="delete-o"
+                @click.stop="deleteDish(dish)"
+              >
+                {{ isZh ? '删除' : 'Delete' }}
+              </van-button>
+              <van-icon v-else name="arrow" color="var(--color-text-light)" />
             </div>
             
             <template #right>

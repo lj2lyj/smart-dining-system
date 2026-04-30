@@ -18,11 +18,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const allergens = ref(JSON.parse(localStorage.getItem('allergens') || '[]'))
     const dietaryRestrictions = ref(JSON.parse(localStorage.getItem('dietaryRestrictions') || '[]'))
 
-    // 自动识别间隔（毫秒）
-    const autoRecognizeInterval = ref(parseInt(localStorage.getItem('autoRecognizeInterval') || '3000'))
 
-    // 是否自动识别
-    const autoRecognizeEnabled = ref(localStorage.getItem('autoRecognizeEnabled') === 'true')
 
     // 计算属性
     const isDarkMode = computed(() => theme.value === 'dark')
@@ -58,15 +54,7 @@ export const useSettingsStore = defineStore('settings', () => {
         dietaryRestrictions.value = items
     }
 
-    // 设置自动识别间隔
-    function setAutoRecognizeInterval(interval) {
-        autoRecognizeInterval.value = interval
-    }
 
-    // 切换自动识别
-    function toggleAutoRecognize() {
-        autoRecognizeEnabled.value = !autoRecognizeEnabled.value
-    }
 
     // 语音播报函数
     function speak(text) {
@@ -87,8 +75,7 @@ export const useSettingsStore = defineStore('settings', () => {
     watch(voiceEnabled, (val) => localStorage.setItem('voiceEnabled', val))
     watch(allergens, (val) => localStorage.setItem('allergens', JSON.stringify(val)), { deep: true })
     watch(dietaryRestrictions, (val) => localStorage.setItem('dietaryRestrictions', JSON.stringify(val)), { deep: true })
-    watch(autoRecognizeInterval, (val) => localStorage.setItem('autoRecognizeInterval', val))
-    watch(autoRecognizeEnabled, (val) => localStorage.setItem('autoRecognizeEnabled', val))
+
 
     return {
         // 状态
@@ -97,8 +84,7 @@ export const useSettingsStore = defineStore('settings', () => {
         voiceEnabled,
         allergens,
         dietaryRestrictions,
-        autoRecognizeInterval,
-        autoRecognizeEnabled,
+
 
         // 计算属性
         isDarkMode,
@@ -111,8 +97,6 @@ export const useSettingsStore = defineStore('settings', () => {
         toggleVoice,
         setAllergens,
         setDietaryRestrictions,
-        setAutoRecognizeInterval,
-        toggleAutoRecognize,
         speak
     }
 })

@@ -36,6 +36,9 @@ desktop.ini
 .env
 .env.local
 
+# 支付密钥文件（绝对不要提交！）
+keys/
+
 # 日志
 *.log
 

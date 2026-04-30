@@ -61,7 +61,7 @@
           <div class="dish-info">
             <div class="dish-name">{{ dish.name }}</div>
             <div class="dish-meta">
-              <span class="dish-price">¥{{ dish.price.toFixed(2) }}</span>
+              <span class="dish-price">¥{{ Number(dish.price || 0).toFixed(2) }}</span>
               <van-tag v-if="dish.source === 'manual'" type="primary" size="small">
                 {{ isZh ? '手动库' : 'Manual' }}
               </van-tag>

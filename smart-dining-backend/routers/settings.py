@@ -40,7 +40,7 @@ async def get_confidence_threshold():
     """获取置信度阈值"""
     settings = await get_settings()
     return {
-        "confidence_threshold": settings.get("confidence_threshold", 0.7)
+        "confidence_threshold": settings.get("confidence_threshold", 0.15)
     }
 
 

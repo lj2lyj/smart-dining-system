@@ -9,6 +9,11 @@ aiofiles>=23.2.1
 pillow>=10.2.0
 numpy>=1.26.0
 httpx>=0.25.0
+# MySQL
+aiomysql>=0.2.0
+PyMySQL>=1.1.0
+# 支付宝 SDK
+alipay-sdk-python>=3.6.0
 # YOLOv13 dependencies
 torch>=2.1.0
 torchvision>=0.16.0

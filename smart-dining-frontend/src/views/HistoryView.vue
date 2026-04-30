@@ -49,13 +49,13 @@
               >
                 <span class="item-name">{{ item.name }}</span>
                 <span class="item-quantity">x{{ item.quantity }}</span>
-                <span class="item-price">¥{{ (item.price * item.quantity).toFixed(2) }}</span>
+                <span class="item-price">¥{{ Number((item.price || 0) * (item.quantity || 0)).toFixed(2) }}</span>
               </div>
             </div>
 
             <div class="order-footer">
               <span class="order-total-label">{{ isZh ? '合计' : 'Total' }}</span>
-              <span class="order-total">¥{{ order.total_amount.toFixed(2) }}</span>
+              <span class="order-total">¥{{ Number(order.total_amount || 0).toFixed(2) }}</span>
             </div>
           </div>
         </van-list>
